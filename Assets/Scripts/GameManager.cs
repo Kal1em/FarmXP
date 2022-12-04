@@ -1,16 +1,20 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 public class GameManager : MonoBehaviour
 {
+    public static GameManager singleton;
     private bool isGameStarted = false;
+    private bool isDead = false;
 
     public Text scoreText;
-    public TextMeshProUGUI hiScore;
-    public TextMeshProUGUI targetScore;
+    public TMP_Text hiScore;
+    public TextMeshProUGUI targetScoreText;
     public TextMeshProUGUI gameoverScore;
+    public TextMeshProUGUI finalScore;
     public TextMeshProUGUI timer;
     public Button restartGame;
     public Image fadeImage;
@@ -18,15 +22,38 @@ public class GameManager : MonoBehaviour
     public GameObject startPanel;
     public GameObject gamePanel;
     public GameObject gameoverPanel;
+    public GameObject levelCompletedPanel;
 
     private Blade blade;
     private Spawner spawner;
 
     private int score;
+    private int targetScore;
     private float timeGiven;
+
+    void Start()
+    {
+        SetUpNewLevel();
+    }
+
+    private void SetUpNewLevel()
+    {
+
+    }
 
     private void Awake()
     {
+        if (singleton == null)
+        {
+            singleton = this;
+        }
+        else if (singleton != this)
+        {
+            Destroy(gameObject);
+            DontDestroyOnLoad(gameObject);
+        }
+
+
         blade = FindObjectOfType<Blade>();
         spawner = FindObjectOfType<Spawner>();
 
@@ -43,13 +70,10 @@ public class GameManager : MonoBehaviour
         if (Input.GetMouseButtonDown(0) && !isGameStarted)
         {
             isGameStarted = true;
-            if (isGameStarted)
-            {
-                NewGame();
-            }
+            NewGame();
         }
 
-        if (isGameStarted)
+        if (isGameStarted && !isDead)
         {
             timeGiven -= Time.deltaTime;
             timer.SetText("Time: " + Mathf.Round(timeGiven));
@@ -59,9 +83,29 @@ public class GameManager : MonoBehaviour
                 Explode();
             }
         }
+
+        bool isLevelCompleted = false;
+
+        if (targetScore < score)
+        {
+            isLevelCompleted = false;
+        }
+
+        if (targetScore == score)
+        {
+            StartCoroutine(LevelCompletionSequence());
+
+            if (Input.GetButtonDown("Fire1"))
+            {
+                //PlayerPrefs.SetInt("CurrentLevelIndex", currentLevelIndex + 1);
+                SceneManager.LoadScene("FarmXP");
+                IncreaseTargetScore();
+            }
+        }
     }
 
-    public void NewGame()
+
+    private void NewGame()
     {
         startPanel.SetActive(false);
         gamePanel.SetActive(true);
@@ -77,13 +121,16 @@ public class GameManager : MonoBehaviour
 
         timeGiven = 30;
 
-        score = 0;
         scoreText.text = score.ToString();
+
+        targetScore = 1000;
+        targetScoreText.text = targetScore.ToString();
     }
 
     public void Restart()
     {
         UnityEngine.SceneManagement.SceneManager.LoadScene("FarmXP");
+        score = 0;
     }
 
     private void ClearScene()
@@ -103,6 +150,34 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /*public void CheckComplete()
+    {
+        bool isLevelCompleted = true;
+
+        if (targetScore < score)
+        {
+            isLevelCompleted = false;
+        }
+
+        if (isLevelCompleted)
+        {
+            StartCoroutine(LevelCompletionSequence());
+
+            if (Input.GetButtonDown("Fire1"))
+            {
+                //PlayerPrefs.SetInt("CurrentLevelIndex", currentLevelIndex + 1);
+                SceneManager.LoadScene("Level");
+                IncreaseTargetScore();
+            }
+        }
+    }*/
+
+    public void IncreaseTargetScore()
+    {
+        targetScore += 250;
+        targetScoreText.text = score.ToString();
+    }
+
     public void IncreaseScore(int points)
     {
         score += points;
@@ -112,6 +187,7 @@ public class GameManager : MonoBehaviour
     public void Explode()
     {
         isGameStarted = false;
+        isDead = true;
 
         blade.enabled = false;
         spawner.enabled = false;
@@ -133,6 +209,70 @@ public class GameManager : MonoBehaviour
             PlayerPrefs.SetInt("High Score", (int)score);
         }
 
+    }
+
+    public void LevelCompleted()
+    {
+        isGameStarted = false;
+        //isLevelCompleted = true;
+
+        blade.enabled = false;
+        spawner.enabled = false;
+
+        StartCoroutine(LevelCompletionSequence());
+
+        gameoverScore.text = score.ToString("0");
+        finalScore.text = score.ToString("0");
+        gamePanel.SetActive(false);
+        levelCompletedPanel.SetActive(true);
+
+        // Check if this a highscore
+        if (score > PlayerPrefs.GetInt("High Score"))
+        {
+            float s = score;
+            if (s % 1 == 0)
+            {
+                s += 1;
+            }
+            PlayerPrefs.SetInt("High Score", (int)score);
+        }
+
+    }
+
+    private IEnumerator LevelCompletionSequence()
+    {
+        float elapsed = 0f;
+        float duration = 0.5f;
+
+        // Fade to white
+        while (elapsed < duration)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            fadeImage.color = Color.Lerp(Color.clear, Color.clear, t);
+
+            Time.timeScale = 1f - t;
+            elapsed += Time.unscaledDeltaTime;
+
+            yield return null;
+        }
+
+       /* yield return new WaitForSecondsRealtime(3f);
+
+
+        NewGame();
+
+        elapsed = 0f;
+
+        // Fade back in
+        while (elapsed < duration)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            fadeImage.color = Color.Lerp(Color.white, Color.clear, t);
+
+            elapsed += Time.unscaledDeltaTime;
+
+            yield return null;
+        }*/
     }
 
     private IEnumerator ExplodeSequence()
@@ -168,6 +308,20 @@ public class GameManager : MonoBehaviour
 
             yield return null;
         }*/
+    }
+
+    private void NextLevel()
+    {
+        if (SceneManager.GetActiveScene().buildIndex == 2)
+        {
+            SceneManager.LoadScene(0);
+        }
+        else
+        {
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);
+            IncreaseTargetScore();
+        }
+
     }
 
 }
